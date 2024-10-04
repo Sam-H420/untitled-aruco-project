@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling", "opencv-contrib-python", "numpy", "matplotlib"]
+build-backend = "hatchling.build"
+
+[project]
+name = "UntitledAruco"
+version = "0.0.1"
+authors = [
+  { name="Sam-H420" },
+]
+description = "Wrapper for the OpenCV aruco detection module with a couple of useful functionalities."
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/Sam-H420/untitled-aruco-project"
+Issues = "https://github.com/Sam-H420/untitled-aruco-project/issues"
