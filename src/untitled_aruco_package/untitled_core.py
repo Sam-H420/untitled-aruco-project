@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+import json
 
 class Pose:
     """Define a pose object with rotation and translation vectors relative to an origin point"""
@@ -27,6 +28,15 @@ class CameraCalibration:
         self.__camera_matrix = np.array(camera_matrix)
         self.__dist_coeffs = np.array(dist_coeffs)
 
+    @classmethod
+    def from_json(cls, filename: str):
+        """Create a CameraCalibration object from a json file"""
+        with open(filename, 'r') as f:
+            data = json.load(f)
+            camera_matrix = np.array(data['camera_matrix'])
+            dist_coeffs = np.array(data['dist_coeffs'])
+            return cls(camera_matrix, dist_coeffs)
+
     @property
     def camera_matrix(self):
         return self.__camera_matrix
@@ -34,6 +44,15 @@ class CameraCalibration:
     @property
     def dist_coeffs(self):
         return self.__dist_coeffs
+    
+    def save(self, filename: str):
+        """Save the camera calibration to a json file"""
+        data = {
+            'camera_matrix': self.__camera_matrix.tolist(),
+            'dist_coeffs': self.__dist_coeffs.tolist()
+        }
+        with open(filename, 'w') as f:
+            json.dump(data, f)
 
     def __str__(self):
         return f'Camera matrix: {self.__camera_matrix}\nDistortion coefficients: {self.__dist_coeffs}'
@@ -266,13 +285,13 @@ class Segment:
    
     def draw_landmarks(self, image: cv2.typing.MatLike, calibration: CameraCalibration):
         """Draw the landmarks on the image"""
-        markerPoint, _ = cv2.projectPoints(np.array([[0, 0, 0]], dtype=np.float_), np.array(self.marker.poses[-1].rvec[0]), np.array(self.marker.poses[-1].tvec[0]), calibration.camera_matrix, calibration.dist_coeffs)
+        markerPoint, _ = cv2.projectPoints(np.array([[0, 0, 0]], dtype=np.float64), np.array(self.marker.poses[-1].rvec[0]), np.array(self.marker.poses[-1].tvec[0]), calibration.camera_matrix, calibration.dist_coeffs)
         out = image.copy()
         out = cv2.circle(out, (int(markerPoint[0][0][0]), int(markerPoint[0][0][1])), 5, (0, 255, 255), -1)
         for landmark in self.__landmarks:
             landmark.determine_absolute_poses()
             # out = cv2.drawFrameAxes(out, calibration.camera_matrix, calibration.dist_coeffs, landmark.absolutePoses[-1].rvec, landmark.absolutePoses[-1].tvec, 0.001)
-            landmarkPoint, _ = cv2.projectPoints(np.array([[0, 0, 0]], dtype=np.float_), np.array(landmark.absolutePoses[-1].rvec[0]), np.array(landmark.absolutePoses[-1].tvec[0]), calibration.camera_matrix, calibration.dist_coeffs)
+            landmarkPoint, _ = cv2.projectPoints(np.array([[0, 0, 0]], dtype=np.float64), np.array(landmark.absolutePoses[-1].rvec[0]), np.array(landmark.absolutePoses[-1].tvec[0]), calibration.camera_matrix, calibration.dist_coeffs)
             out = cv2.circle(out, (int(landmarkPoint[0][0][0]), int(landmarkPoint[0][0][1])), 5, (0, 255, 255), -1)
             out = cv2.line(out, (int(markerPoint[0][0][0]), int(markerPoint[0][0][1])), (int(landmarkPoint[0][0][0]), int(landmarkPoint[0][0][1])), (255, 0, 255), 2)
         return out
@@ -345,6 +364,9 @@ class ArucoDetector:
         output = img.copy()
         output = cv2.aruco.drawDetectedMarkers(output, corners, ids, borderColor=(0, 255, 0))
 
+        if ids is None:
+            return [], output
+        
         for i in range(np.size(ids)):
             if ids[i] in [marker.id for marker in markers]:
                 if self.cameraCalibration is not None:
@@ -356,3 +378,35 @@ class ArucoDetector:
                             marker.poses.append(pose)
 
         return markers, output
+    
+    def for_segments(self, img: cv2.typing.MatLike, segments: list[Segment], marker_length: float = 0.02):
+        """Detect markers in the given image and create a list of Marker objects"""
+
+        ids = np.array([])
+        corners = np.array([])
+
+        marker_dict = cv2.aruco.getPredefinedDictionary(self.dictionary)
+        parameters = cv2.aruco.DetectorParameters()
+        detector = cv2.aruco.ArucoDetector(marker_dict, parameters)
+        corners, ids, _ = detector.detectMarkers(img)
+
+        output = img.copy()
+        output = cv2.aruco.drawDetectedMarkers(output, corners, ids, borderColor=(0, 255, 0))
+
+        if ids is None:
+            return [], output
+
+        for i in range(np.size(ids)):
+            if ids[i] in [segment.marker.id for segment in segments]:
+                if self.cameraCalibration is not None:
+                    rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners[i], marker_length, self.cameraCalibration.camera_matrix, self.cameraCalibration.dist_coeffs)
+                    output = cv2.drawFrameAxes(output, self.cameraCalibration.camera_matrix, self.cameraCalibration.dist_coeffs, rvecs, tvecs, marker_length/2)
+                    pose = Pose(rvecs, tvecs)
+                    for segment in segments:
+                        if segment.marker.id == ids[i]:
+                            segment.marker.poses.append(pose)
+
+        for segment in segments:
+            output = segment.draw_landmarks(output, self.cameraCalibration)
+
+        return segments, output
