@@ -5,7 +5,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 import cv2
 from src.untitled_aruco_package.untitled_core import Marker, Camera, ArucoDetector, CameraCalibration, Pose, Segment, Landmark
 
-blenderCamera = Camera(id=0, reference='Blender Camera', calibration=CameraCalibration.from_json('tests/calib/blender-camera-calib.json'))
+blenderCamera = Camera(id=0, reference='Blender Camera', calibration=CameraCalibration.from_json('./calib/blender-camera-calib.json'))
 
 marker = Marker(cv2.aruco.DICT_4X4_50, 2, 500)
 marker_length = 2.0
@@ -15,7 +15,7 @@ segment.add_landmark([[[marker_length, 0.0, 0.0]]])
 
 arucoDetector = ArucoDetector(dictionary=cv2.aruco.DICT_4X4_50, cameraCalibration=blenderCamera.calibration)
 
-cap = cv2.VideoCapture(1)
+cap = cv2.VideoCapture(0)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 ok, frame = cap.read()
